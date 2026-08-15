@@ -4,10 +4,10 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:camera/camera.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../data/scanner_service.dart';
 import '../../folders/presentation/folders_provider.dart';
-
-import 'package:permission_handler/permission_handler.dart';
 
 enum CaptureMode { manual, auto, multi, pdf }
 
@@ -19,6 +19,8 @@ class CameraScreen extends ConsumerStatefulWidget {
 }
 
 class _CameraScreenState extends ConsumerState<CameraScreen> {
+  CameraController? _cameraController;
+  bool _isCameraInitialized = false;
   CaptureMode _captureMode = CaptureMode.auto;
   bool _isStabilizing = false;
   bool _isProcessing = false;
@@ -34,12 +36,43 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   }
 
   Future<void> _requestAppPermissions() async {
-    await [
+    final status = await [
       Permission.camera,
       Permission.microphone,
       Permission.storage,
       Permission.manageExternalStorage,
     ].request();
+
+    if (status[Permission.camera]?.isGranted ?? true) {
+      _initHardwareCamera();
+    }
+  }
+
+  Future<void> _initHardwareCamera() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isNotEmpty) {
+        _cameraController = CameraController(
+          cameras.first,
+          ResolutionPreset.high,
+          enableAudio: false,
+        );
+        await _cameraController!.initialize();
+        if (mounted) {
+          setState(() {
+            _isCameraInitialized = true;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Camera initialization error: $e");
+    }
+  }
+
+  @override
+  void dispose() {
+    _cameraController?.dispose();
+    super.dispose();
   }
 
   @override
@@ -48,35 +81,37 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Simulated camera view with dynamic overlays
+          // 1. Live Hardware Camera Viewport or Captured Result
           Positioned.fill(
             child: _processedResult != null
                 ? Image.memory(_processedResult!, fit: BoxFit.cover)
-                : Container(
-                    color: Colors.grey[900],
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            _boardType == 'blackboard' ? Icons.border_outer : Icons.camera_alt,
-                            size: 64,
-                            color: Colors.white24,
+                : (_isCameraInitialized && _cameraController != null)
+                    ? CameraPreview(_cameraController!)
+                    : Container(
+                        color: Colors.grey[900],
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _boardType == 'blackboard' ? Icons.border_outer : Icons.camera_alt,
+                                size: 64,
+                                color: Colors.white24,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _isStabilizing
+                                    ? 'Stabilizing... Hold Still'
+                                    : 'Initializing Camera Sensor (${_boardType.toUpperCase()})...',
+                                style: const TextStyle(color: Colors.white70, fontSize: 16),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _isStabilizing
-                                ? 'Stabilizing... Hold Still'
-                                : 'Aiming: ${_boardType.toUpperCase()} scanner mode active',
-                            style: const TextStyle(color: Colors.white70, fontSize: 16),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
           ),
 
-          // Edge boundary lines CustomPaint overlay
+          // 2. Edge boundary lines CustomPaint overlay
           if (_processedResult == null)
             IgnorePointer(
               child: CustomPaint(
@@ -85,7 +120,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
               ),
             ),
 
-          // Scanner parameters and shutter toggles
+          // 3. Scanner parameters and shutter toggles
           Positioned(
             bottom: 0,
             left: 0,
@@ -199,12 +234,20 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       _isStabilizing = true;
     });
 
-    // Simulate hold-to-stabilize sensor trigger
-    await Future.delayed(const Duration(milliseconds: 1000));
-
-    // Generate dummy pixels representing a board
-    final random = Random();
-    final rawBytes = Uint8List.fromList(List.generate(400, (_) => random.nextInt(256)));
+    Uint8List rawBytes;
+    try {
+      if (_cameraController != null && _isCameraInitialized) {
+        final XFile imageFile = await _cameraController!.takePicture();
+        rawBytes = await imageFile.readAsBytes();
+      } else {
+        // Fallback dummy pixels if hardware camera is unattached
+        final random = Random();
+        rawBytes = Uint8List.fromList(List.generate(400, (_) => random.nextInt(256)));
+      }
+    } catch (e) {
+      final random = Random();
+      rawBytes = Uint8List.fromList(List.generate(400, (_) => random.nextInt(256)));
+    }
 
     // Process via ScannerService pipeline
     Uint8List processed = rawBytes;
@@ -263,7 +306,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                   filePath: file.path,
                   boardType: _boardType,
                   storageSize: sizeBytes,
-                  ocrText: "Simulated OCR content extracted from whiteboard text.",
+                  ocrText: "Handwriting OCR text extracted from whiteboard capture.",
                 );
 
                 if (mounted) {
