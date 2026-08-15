@@ -1,0 +1,124 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  BASIC
+  ADMIN
+  GOD
+}
+
+enum PermissionType {
+  READ
+  WRITE
+}
+
+enum LoginStatus {
+  SUCCESS
+  FAILED
+}
+
+model User {
+  id           String        @id @default(uuid())
+  username     String        @unique
+  email        String        @unique
+  passwordHash String
+  role         Role          @default(BASIC)
+  isEnabled    Boolean       @default(true)
+  isLocked     Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  folders      Folder[]      @relation("UserFolders")
+  scans        Scan[]        @relation("UserScans")
+  sharesSent   Share[]       @relation("SharesSent")
+  sharesRecv   Share[]       @relation("SharesReceived")
+  deviceInfo   DeviceInfo[]
+  auditLogs    AuditLog[]
+  logins       LoginHistory[]
+}
+
+model Folder {
+  id        String   @id @default(uuid())
+  name      String
+  ownerId   String
+  owner     User     @relation("UserFolders", fields: [ownerId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Folder?  @relation("SubFolders", fields: [parentId], references: [id], onDelete: Cascade)
+  subFolders Folder[] @relation("SubFolders")
+  scans     Scan[]
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  shares    Share[]  @relation("SharedFolder")
+}
+
+model Scan {
+  id          String   @id @default(uuid())
+  name        String
+  filePath    String   // path in private storage
+  boardType   String   // 'whiteboard' | 'blackboard' | 'slide' | 'document'
+  storageSize Int      // in bytes
+  ocrText     String?
+  folderId    String?
+  folder      Folder?  @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  ownerId     String
+  owner       User     @relation("UserScans", fields: [ownerId], references: [id], onDelete: Cascade)
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  shares      Share[]  @relation("SharedScan")
+}
+
+model Share {
+  id             String         @id @default(uuid())
+  sharedById     String
+  sharedBy       User           @relation("SharesSent", fields: [sharedById], references: [id], onDelete: Cascade)
+  sharedToId     String
+  sharedTo       User           @relation("SharesReceived", fields: [sharedToId], references: [id], onDelete: Cascade)
+  folderId       String?
+  folder         Folder?        @relation("SharedFolder", fields: [folderId], references: [id], onDelete: Cascade)
+  scanId         String?
+  scan           Scan?          @relation("SharedScan", fields: [scanId], references: [id], onDelete: Cascade)
+  permissionType PermissionType @default(READ)
+  createdAt      DateTime       @default(now())
+}
+
+model DeviceInfo {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceName     String
+  androidVersion String
+  deviceModel    String
+  appVersion     String
+  storageUsage   BigInt   // in bytes
+  syncStatus     String   // 'Synced' | 'Pending' | 'Offline'
+  updatedAt      DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  details   String
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+}
+
+model LoginHistory {
+  id        String      @id @default(uuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    LoginStatus
+  ipAddress String?
+  userAgent String?
+  timestamp DateTime    @default(now())
+}

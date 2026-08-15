@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: board_scanner_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres_user
+      POSTGRES_PASSWORD: password123!
+      POSTGRES_DB: board_scanner_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: board_scanner_api
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      PORT: 5000
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://postgres_user:password123!@postgres:5432/board_scanner_db?schema=public"
+      JWT_SECRET: "super-secret-key-change-in-production-must-be-long-and-secure"
+    depends_on:
+      - postgres
+
+  demo:
+    build:
+      context: ./demo
+      dockerfile: Dockerfile
+    container_name: board_scanner_demo
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+
+volumes:
+  pgdata:

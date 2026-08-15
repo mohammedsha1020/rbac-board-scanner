@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Role-Based Classroom Board Scanner - Interactive Demo</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- FontAwesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+  <header>
+    <div class="brand-section">
+      <i class="fa-solid fa-blur brand-icon"></i>
+      <div>
+        <h1 class="brand-title">BoardScanner.app</h1>
+        <span class="brand-tag">RBAC Security Demonstration</span>
+      </div>
+    </div>
+
+    <!-- Active User Selector -->
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span style="font-size: 13px; color: var(--text-muted); font-weight: 600;">Switch Active Account:</span>
+      <div class="role-badge-container">
+        <button class="role-btn active" data-role="BASIC" onclick="switchRole('BASIC')">
+          <i class="fa-solid fa-user"></i> L1 - Basic (John)
+        </button>
+        <button class="role-btn" data-role="ADMIN" onclick="switchRole('ADMIN')">
+          <i class="fa-solid fa-user-shield"></i> L2 - Admin (Clark)
+        </button>
+        <button class="role-btn" data-role="GOD" onclick="switchRole('GOD')">
+          <i class="fa-solid fa-crown"></i> L3 - God (System)
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="dashboard-grid">
+    
+    <!-- Left Column: Mobile App Simulator -->
+    <section class="simulator-column">
+      <div class="phone-wrapper">
+        <div class="phone-camera-hole"></div>
+        <div class="phone-screen">
+          
+          <!-- Top bar metrics -->
+          <div class="phone-top-bar">
+            <span id="phone-time">18:03</span>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <i class="fa-solid fa-wifi"></i>
+              <i class="fa-solid fa-signal"></i>
+              <i class="fa-solid fa-battery-full"></i>
+            </div>
+          </div>
+
+          <!-- Phone Screen content wrapper -->
+          <div class="phone-content">
+            
+            <!-- View 1: Scanner Viewport -->
+            <div id="phone-scanner-view" class="phone-view active">
+              <div class="scanner-viewport">
+                <div class="camera-preview-container">
+                  <canvas id="camera-canvas"></canvas>
+                  
+                  <!-- Virtual edge boundaries overlay -->
+                  <div class="corner-overlay"></div>
+                  <div class="scan-guideline"></div>
+                  
+                  <div class="stabilization-prompt">
+                    <i class="fa-solid fa-circle-notch fa-spin" style="color: var(--primary);"></i>
+                    <span id="stabilize-text">Auto-detecting whiteboard boundaries...</span>
+                  </div>
+                </div>
+
+                <div class="scanner-panel">
+                  <div class="mode-selector">
+                    <button class="mode-btn active" onclick="setCaptureMode('auto')">AUTO</button>
+                    <button class="mode-btn" onclick="setCaptureMode('manual')">MANUAL</button>
+                    <button class="mode-btn" onclick="setCaptureMode('multi')">BATCH</button>
+                    <button class="mode-btn" onclick="setCaptureMode('pdf')">PDF CAP</button>
+                  </div>
+
+                  <div class="filter-controls">
+                    <label class="filter-toggle">
+                      <input type="checkbox" id="chk-shadow" checked onchange="triggerImageRefresh()">
+                      <span>Remove Shadows</span>
+                    </label>
+                    <label class="filter-toggle">
+                      <input type="checkbox" id="chk-contrast" checked onchange="triggerImageRefresh()">
+                      <span>Clarify Handwriting</span>
+                    </label>
+                  </div>
+
+                  <div class="capture-controls">
+                    <button class="action-btn" onclick="resetCanvasImage()">
+                      <i class="fa-solid fa-rotate-left"></i>
+                    </button>
+                    <div class="shutter-btn" onclick="triggerCapture()">
+                      <div class="shutter-inner"></div>
+                    </div>
+                    <button class="action-btn" onclick="toggleScannerSubjectBoard()">
+                      <i class="fa-solid fa-chalkboard"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Dialog modal for file naming/saving inside phone -->
+              <div id="save-dialog" class="save-overlay">
+                <h3 class="save-title">Save Scan Result</h3>
+                <label style="font-size:12px; color: var(--text-muted); margin-bottom: 6px;">Name your whiteboard capture:</label>
+                <input type="text" id="scan-file-name" class="save-input" value="Math formulas study">
+                
+                <label style="font-size:12px; color: var(--text-muted); margin-bottom: 6px;">Select Subject Folder:</label>
+                <select id="scan-folder-select" class="save-select">
+                  <!-- Folders will load here -->
+                </select>
+
+                <div class="save-actions">
+                  <button class="save-btn-cancel" onclick="closeSaveDialog()">Discard</button>
+                  <button class="save-btn-confirm" onclick="saveCapturedScan()">Save to App Sandbox</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- View 2: Folders Viewport (File Manager / Device Storage) -->
+            <div id="phone-folders-view" class="phone-view">
+              <div class="folders-viewport" style="display: flex; flex-direction: column; height: 100%;">
+                
+                <!-- Sub-tab headers (Sandbox vs Device Storage) -->
+                <div style="display: flex; background-color: var(--bg-card); border-bottom: 1px solid var(--border); margin-bottom: 10px;">
+                  <button id="subtab-sandbox" class="phone-nav-item active" onclick="switchFileSystemTabDemo(0)" style="flex:1; height: 38px; font-size:11px; padding:0; border:none; background:none; border-bottom: 2px solid var(--primary);">
+                    <i class="fa-solid fa-cloud-sun" style="font-size:13px; margin-right:4px;"></i> Sandbox
+                  </button>
+                  <button id="subtab-device" class="phone-nav-item" onclick="switchFileSystemTabDemo(1)" style="flex:1; height: 38px; font-size:11px; padding:0; border:none; background:none; border-bottom: 2px solid transparent;">
+                    <i class="fa-solid fa-folder-tree" style="font-size:13px; margin-right:4px;"></i> Device (A-Z)
+                  </button>
+                </div>
+
+                <!-- Admin/God Sandbox Switcher inside Mobile screen -->
+                <div id="phone-sandbox-container" style="display: none; padding: 10px 14px; background-color: rgba(99, 102, 241, 0.1); border-radius: 12px; margin-bottom: 12px; border: 1px solid rgba(99, 102, 241, 0.2);">
+                  <label style="font-size: 10px; color: var(--text-muted); font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 4px;">User Sandbox</label>
+                  <select id="phone-sandbox-select" onchange="switchSandboxUserDemo()" style="width:100%; background-color: var(--bg-dark); border: 1px solid var(--border); color: white; padding: 6px; border-radius: 6px; font-family: var(--font-sans); font-size:12px; font-weight:600;">
+                    <option value="u1">basic_john (Student)</option>
+                    <option value="u2">basic_emma (Student)</option>
+                    <option value="u3">admin_clark (Admin)</option>
+                    <option value="u4">god_system (God)</option>
+                  </select>
+                </div>
+
+                <!-- Device Path Indicator (shown only on Device tab) -->
+                <div id="phone-device-path-bar" style="display: none; align-items: center; gap: 8px; padding: 6px 12px; background-color: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 10px; font-family: var(--font-mono); font-size: 11px;">
+                  <button onclick="navigateDeviceParentDemo()" style="background:none; border:none; color:white; cursor:pointer;"><i class="fa-solid fa-arrow-up"></i></button>
+                  <span id="phone-device-path" style="color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">/storage/emulated/0</span>
+                </div>
+
+                <div class="folders-title-row" style="margin-bottom: 10px;" id="phone-folders-header-row">
+                  <h2 class="folders-title" style="font-size: 14px;" id="phone-files-title">App Sandbox Explorer</h2>
+                  <button class="action-btn" id="phone-create-folder-btn" style="width:28px; height:28px; border-radius: 50%;" onclick="createFolderDemo()">
+                    <i class="fa-solid fa-folder-plus" style="font-size: 12px;"></i>
+                  </button>
+                </div>
+
+                <!-- Search Input Bar -->
+                <div style="position: relative; margin-bottom: 12px;">
+                  <input type="text" id="phone-search-input" oninput="triggerPhoneSearch()" placeholder="Search folders & board files..." style="width: 100%; padding: 8px 12px 8px 32px; background-color: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 10px; color: white; font-family: var(--font-sans); font-size: 13px;">
+                  <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 11px; font-size: 12px; color: var(--text-muted);"></i>
+                </div>
+
+                <div class="breadcrumbs" id="folder-breadcrumbs" style="margin-bottom: 8px;">
+                  <span class="breadcrumb-link" onclick="navigateFolder(null)">Root</span>
+                </div>
+
+                <!-- Standard Sandbox List View -->
+                <div style="flex: 1; overflow-y: auto; padding-right: 2px;" id="phone-sandbox-explorer-view">
+                  <div class="folder-grid" id="folder-grid-items" style="margin-bottom: 16px;">
+                    <!-- Folders dynamically populate -->
+                  </div>
+
+                  <div style="font-size: 11px; font-weight:700; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">
+                    Whiteboards & Documents
+                  </div>
+                  <div class="scan-list" id="scan-list-items">
+                    <!-- Scans dynamically populate -->
+                  </div>
+                </div>
+
+                <!-- Device Explorer (A-Z) View -->
+                <div style="flex: 1; overflow-y: auto; padding-right: 2px; display: none;" id="phone-device-explorer-view">
+                  <div class="scan-list" id="device-explorer-list-items">
+                    <!-- Alphabetic Android files populate -->
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- Context Option Sheets / Rename & Move Actions Modals in Mobile simulation -->
+              <div id="phone-action-sheet" class="save-overlay" style="justify-content: flex-end; background-color: rgba(15,23,42,0.85);">
+                <div style="background-color: var(--bg-card); border-radius: 20px 20px 0 0; padding: 20px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px;">
+                  <h4 id="action-sheet-title" style="margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; font-size: 14px;">File Actions</h4>
+                  
+                  <button class="save-btn-cancel" onclick="triggerRenameDemoPrompt()" style="text-align: left; background-color: transparent; border: none; padding: 10px 14px; border-radius: 8px; display: flex; align-items: center; gap: 12px; font-size: 13px;">
+                    <i class="fa-solid fa-pen-to-square" style="color: var(--primary);"></i> Rename Item
+                  </button>
+                  
+                  <button class="save-btn-cancel" onclick="triggerMoveDemoPrompt()" style="text-align: left; background-color: transparent; border: none; padding: 10px 14px; border-radius: 8px; display: flex; align-items: center; gap: 12px; font-size: 13px;">
+                    <i class="fa-solid fa-arrows-up-down-left-right" style="color: var(--accent);"></i> Move Item Location
+                  </button>
+
+                  <button class="save-btn-cancel" onclick="triggerDeleteDemo()" style="text-align: left; background-color: transparent; border: none; padding: 10px 14px; border-radius: 8px; display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--danger);">
+                    <i class="fa-solid fa-trash-can" style="color: var(--danger);"></i> Delete Item
+                  </button>
+                  
+                  <div style="height: 1px; background-color: var(--border); margin: 8px 0;"></div>
+                  
+                  <button class="save-btn-confirm" onclick="closePhoneActionSheet()" style="padding: 10px;">
+                    Dismiss Menu
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- View 3: Simulated Profile/Settings -->
+            <div id="phone-profile-view" class="phone-view">
+              <div style="padding: 24px; text-align: center;">
+                <div style="width: 80px; height: 80px; background-color: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+                  <i class="fa-solid fa-user-gear" style="font-size: 36px; color: white;"></i>
+                </div>
+                <h3 id="profile-name">basic_john</h3>
+                <p id="profile-role" style="font-size: 13px; color: var(--text-muted); margin-top: 4px; font-weight:600; text-transform: uppercase;">BASIC USER</p>
+                
+                <div style="margin-top: 30px; text-align: left; background-color: var(--bg-card); border-radius:12px; border:1px solid var(--border); padding: 16px;">
+                  <div style="font-size:12px; color: var(--text-muted); margin-bottom: 4px;">Connected Node Server</div>
+                  <div style="font-size:14px; font-weight:600; color: var(--success);">Online (http://localhost:5000)</div>
+                  
+                  <div style="height:1px; background-color: var(--border); margin:12px 0;"></div>
+                  
+                  <div style="font-size:12px; color: var(--text-muted); margin-bottom: 4px;">Sandbox Directory</div>
+                  <div style="font-size:14px; font-family: var(--font-mono); color: var(--text-main);">/data/user/0/app.scanner/files</div>
+                  
+                  <div style="height:1px; background-color: var(--border); margin:12px 0;"></div>
+
+                  <div style="font-size:12px; color: var(--text-muted); margin-bottom: 4px;">Security Policy</div>
+                  <div style="font-size:14px; color: var(--text-main);">Files hidden from Android Image Gallery (No Media Indexing)</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Bottom Navigation inside phone simulator -->
+          <nav class="phone-nav-bar">
+            <button class="phone-nav-item active" id="nav-scan" onclick="switchPhoneTab('scanner')">
+              <i class="fa-solid fa-camera-retro"></i>
+              <span>Scanner</span>
+            </button>
+            <button class="phone-nav-item" id="nav-folders" onclick="switchPhoneTab('folders')">
+              <i class="fa-solid fa-folder-open"></i>
+              <span>Files</span>
+            </button>
+            <button class="phone-nav-item" id="nav-profile" onclick="switchPhoneTab('profile')">
+              <i class="fa-solid fa-gear"></i>
+              <span>Settings</span>
+            </button>
+          </nav>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Desktop Admin Console Simulator -->
+    <section class="console-column">
+      <div class="console-card">
+        
+        <!-- Unauthorized overlay guard -->
+        <div id="lockout-screen" class="unauth-shield">
+          <i class="fa-solid fa-shield-halved shield-icon"></i>
+          <h2 class="shield-title">Administration Console Restricted</h2>
+          <p class="shield-text">
+            The active user role is <strong style="color: var(--danger);">L1 - Basic User</strong>. Under security policy, 
+            Basic Users are restricted from listing user profiles, tracking active device states, or accessing the central server control panel.
+          </p>
+          <div style="margin-top: 24px; font-size:12px; color: var(--text-muted); background-color: rgba(0,0,0,0.2); padding: 8px 16px; border-radius: 6px; border:1px solid var(--border);">
+            Use the top menu to switch roles and see the console adapt.
+          </div>
+        </div>
+
+        <div class="console-header">
+          <div class="console-title-group">
+            <i class="fa-solid fa-server"></i>
+            <div>
+              <h2 class="console-title">Security & Storage Telemetry Console</h2>
+              <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                Central Server Management Portal • PostgreSQL Integration
+              </p>
+            </div>
+          </div>
+          <span class="console-badge" id="active-console-badge">L2 - ADMIN</span>
+        </div>
+
+        <!-- Telemetry Stats Panel -->
+        <div class="storage-stats-container">
+          <div class="stat-widget">
+            <span class="stat-label">Total Monitored Space</span>
+            <span class="stat-value" id="stat-space">42.1 MB</span>
+          </div>
+          <div class="stat-widget">
+            <span class="stat-label">Indexed Whiteboards</span>
+            <span class="stat-value" id="stat-scans">4 Scans</span>
+          </div>
+          <div class="stat-widget">
+            <span class="stat-label">Audit Logs Registered</span>
+            <span class="stat-value" id="stat-logs">4 Records</span>
+          </div>
+        </div>
+
+        <!-- Navigation Tabs for Console -->
+        <div class="console-tabs">
+          <button class="console-tab-btn active" id="tab-users" onclick="switchConsoleTab('users')">
+            <i class="fa-solid fa-users-gear"></i> User Directory
+          </button>
+          <button class="console-tab-btn" id="tab-devices" onclick="switchConsoleTab('devices')">
+            <i class="fa-solid fa-mobile-screen-button"></i> Telemetry Details
+          </button>
+          <button class="console-tab-btn" id="tab-logs" onclick="switchConsoleTab('logs')">
+            <i class="fa-solid fa-scroll"></i> Central Audit Trail
+          </button>
+        </div>
+
+        <!-- Panel 1: User Directory List -->
+        <div id="panel-users" class="console-panel active">
+          <table class="user-list-table">
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th style="text-align: right;">Security Operations</th>
+              </tr>
+            </thead>
+            <tbody id="user-table-body">
+              <!-- Users populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Panel 2: Telemetry/Devices Details -->
+        <div id="panel-devices" class="console-panel">
+          <div class="device-grid" id="device-grid-items">
+            <!-- Telemetries populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Panel 3: Central System Audit Logs (L3 GOD restricted) -->
+        <div id="panel-logs" class="console-panel" style="position: relative; height: 100%;">
+          
+          <!-- God mode sub-lockout shield -->
+          <div id="god-lockout-shield" class="unauth-shield" style="border-radius:12px; background-color: rgba(30, 41, 59, 0.95); z-index: 90;">
+            <i class="fa-solid fa-key shield-icon" style="color: var(--warning);"></i>
+            <h3 class="shield-title" style="font-size:18px;">Level 3 Clearance Required</h3>
+            <p class="shield-text" style="font-size:13px;">
+              System-wide audit logging tracks critical administrative adjustments. Level 2 (Admin) users are barred from viewing these tables to maintain operational sovereignty.
+            </p>
+          </div>
+
+          <div class="logs-viewport" id="audit-logs-viewport">
+            <!-- Logs populated dynamically -->
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    &copy; 2026 BoardScanner Mobile Project. Built with Flutter (Material 3) & Node.js Express. All rights reserved.
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

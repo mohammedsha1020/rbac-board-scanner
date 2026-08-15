@@ -1,0 +1,12 @@
+{
+  "name": "rbac-scanner-demo",
+  "version": "1.0.0",
+  "description": "Interactive Web Demonstration for the Classroom Board Scanner Mobile App",
+  "main": "demo_server.js",
+  "scripts": {
+    "start": "node demo_server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

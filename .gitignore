@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build & Compilation Outputs
+dist/
+build/
+*.apk
+*.zip
+
+# Environment & Credentials
+.env
+*.pem
+*.key
+
+# Toolchains & SDK Downloads
+tools/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.suo
+*.user
+
+# System Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
