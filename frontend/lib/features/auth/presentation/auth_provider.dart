@@ -92,7 +92,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 }
 
 final apiClientProvider = Provider<ApiClient>((ref) {
-  return ApiClient(baseUrl: 'http://localhost:5000'); // Configure backend address
+  return ApiClient(baseUrl: 'http://13.232.148.24:5000'); // AWS Lightsail Backend Server
 });
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
