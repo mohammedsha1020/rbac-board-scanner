@@ -23,6 +23,7 @@ dependencies:
   
   # System Tools
   camera: ^0.10.5+9
+  permission_handler: ^11.3.1
   path_provider: ^2.1.2
   image: ^4.1.7 # custom dart-based filters and manipulation
   share_plus: ^7.2.1

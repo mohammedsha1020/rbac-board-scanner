@@ -7,6 +7,8 @@ import 'package:path_provider/path_provider.dart';
 import '../data/scanner_service.dart';
 import '../../folders/presentation/folders_provider.dart';
 
+import 'package:permission_handler/permission_handler.dart';
+
 enum CaptureMode { manual, auto, multi, pdf }
 
 class CameraScreen extends ConsumerStatefulWidget {
@@ -24,6 +26,21 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   bool _shadowFilter = true;
   bool _contrastFilter = true;
   String _boardType = 'whiteboard';
+
+  @override
+  void initState() {
+    super.initState();
+    _requestAppPermissions();
+  }
+
+  Future<void> _requestAppPermissions() async {
+    await [
+      Permission.camera,
+      Permission.microphone,
+      Permission.storage,
+      Permission.manageExternalStorage,
+    ].request();
+  }
 
   @override
   Widget build(BuildContext context) {

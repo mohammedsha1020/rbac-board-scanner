@@ -5,6 +5,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:rbac_board_scanner/features/auth/presentation/auth_provider.dart';
 import 'package:rbac_board_scanner/features/folders/presentation/folders_provider.dart';
 
+import 'package:permission_handler/permission_handler.dart';
+
 final fileSystemTabProvider = StateProvider<int>((ref) => 0); // 0: App Sandbox, 1: Device Storage (A-Z)
 final deviceCurrentPathProvider = StateProvider<String>((ref) => "/storage/emulated/0");
 final deviceSearchQueryProvider = StateProvider<String>((ref) => "");
@@ -20,6 +22,19 @@ class FoldersScreen extends ConsumerStatefulWidget {
 
 class _FoldersScreenState extends ConsumerState<FoldersScreen> {
   final _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _requestStoragePermission();
+  }
+
+  Future<void> _requestStoragePermission() async {
+    await [
+      Permission.storage,
+      Permission.manageExternalStorage,
+    ].request();
+  }
 
   @override
   void dispose() {
