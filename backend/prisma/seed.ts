@@ -8,12 +8,12 @@ async function main() {
 
   // Hash passwords
   const salt = await bcrypt.genSalt(10);
-  const passwordHash = await bcrypt.hash('Password123!', salt);
+  const passwordHash = await bcrypt.hash('password123', salt);
 
   // 1. Create Users
   const godUser = await prisma.user.upsert({
     where: { username: 'god' },
-    update: {},
+    update: { passwordHash },
     create: {
       username: 'god',
       email: 'god@boardscanner.app',
@@ -24,7 +24,7 @@ async function main() {
 
   const adminUser = await prisma.user.upsert({
     where: { username: 'admin' },
-    update: {},
+    update: { passwordHash },
     create: {
       username: 'admin',
       email: 'admin@boardscanner.app',
@@ -35,7 +35,7 @@ async function main() {
 
   const basicUser = await prisma.user.upsert({
     where: { username: 'basic' },
-    update: {},
+    update: { passwordHash },
     create: {
       username: 'basic',
       email: 'basic@boardscanner.app',
