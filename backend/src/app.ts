@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { authenticateToken, requireRole } from './middlewares/auth';
-import { login, registerUser, getProfile } from './controllers/auth.controller';
+import { login, registerUser, signupPublic, getProfile } from './controllers/auth.controller';
 import { getFolders, createFolder, uploadScan, getScans, deleteScan, shareResource } from './controllers/scan.controller';
 import { 
   getUsers, 
@@ -20,6 +20,7 @@ app.use(express.json());
 
 // Public routes
 app.post('/api/auth/login', login);
+app.post('/api/auth/register', signupPublic);
 
 // Authenticated general routes
 app.get('/api/auth/profile', authenticateToken, getProfile);

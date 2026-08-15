@@ -173,3 +173,54 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(500).json({ error: err.message });
   }
 };
+
+export const signupPublic = async (req: AuthenticatedRequest, res: Response) => {
+  const { username, email, password } = req.body;
+
+  if (!username || !email || !password) {
+    return res.status(400).json({ error: 'Username, email, and password are required' });
+  }
+
+  try {
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [{ username }, { email }]
+      }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'Username or Email already in use' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    const newUser = await prisma.user.create({
+      data: {
+        username,
+        email,
+        passwordHash,
+        role: 'BASIC',
+      }
+    });
+
+    const token = jwt.sign(
+      { id: newUser.id, username: newUser.username, role: newUser.role },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    return res.status(201).json({
+      message: 'Account created successfully',
+      token,
+      user: {
+        id: newUser.id,
+        username: newUser.username,
+        email: newUser.email,
+        role: newUser.role,
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+};
