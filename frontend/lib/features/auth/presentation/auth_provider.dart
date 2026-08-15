@@ -85,6 +85,40 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  Future<bool> register(String username, String email, String password) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final response = await _apiClient.post('/api/auth/register', {
+        'username': username,
+        'email': email,
+        'password': password,
+      });
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final token = data['token'];
+        final user = User.fromJson(data['user']);
+        
+        await _apiClient.saveToken(token);
+        state = AuthState(user: user, token: token);
+        return true;
+      } else {
+        final data = json.decode(response.body);
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: data['error'] ?? 'Registration failed',
+        );
+        return false;
+      }
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Network error. Please verify your connection.',
+      );
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     await _apiClient.clearToken();
     state = AuthState();

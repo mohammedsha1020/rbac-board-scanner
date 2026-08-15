@@ -102,7 +102,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                               Text(
                                 _isStabilizing
                                     ? 'Stabilizing... Hold Still'
-                                    : 'Initializing Camera Sensor (${_boardType.toUpperCase()})...',
+                                    : 'Aiming: ${_boardType.toUpperCase()} scanner mode active',
                                 style: const TextStyle(color: Colors.white70, fontSize: 16),
                               ),
                             ],
@@ -240,7 +240,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         final XFile imageFile = await _cameraController!.takePicture();
         rawBytes = await imageFile.readAsBytes();
       } else {
-        // Fallback dummy pixels if hardware camera is unattached
         final random = Random();
         rawBytes = Uint8List.fromList(List.generate(400, (_) => random.nextInt(256)));
       }
@@ -249,24 +248,31 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       rawBytes = Uint8List.fromList(List.generate(400, (_) => random.nextInt(256)));
     }
 
-    // Process via ScannerService pipeline
-    Uint8List processed = rawBytes;
-    try {
-      if (_shadowFilter) {
-        processed = ScannerService.removeShadowsAndGlare(processed);
-      }
-      if (_contrastFilter) {
-        processed = ScannerService.sharpenHandwriting(processed, isBlackboard: _boardType == 'blackboard');
-      }
-    } catch (e) {
-      // Fallback
-    }
-
     setState(() {
       _isProcessing = false;
       _isStabilizing = false;
-      _processedResult = processed;
     });
+
+    // Open Interactive Crop & Warp Editor
+    if (mounted) {
+      final croppedResult = await Navigator.push<Uint8List>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => InteractiveCropScreen(
+            rawBytes: rawBytes,
+            shadowFilter: _shadowFilter,
+            contrastFilter: _contrastFilter,
+            boardType: _boardType,
+          ),
+        ),
+      );
+
+      if (croppedResult != null && mounted) {
+        setState(() {
+          _processedResult = croppedResult;
+        });
+      }
+    }
   }
 
   void _saveProcessedScanDialog() {
@@ -285,19 +291,16 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             onPressed: () async {
               final filename = controller.text.trim();
               if (filename.isNotEmpty && _processedResult != null) {
-                // 1. Get private application documents storage directory
                 final appDir = await getApplicationDocumentsDirectory();
                 final secureSubDir = Directory('${appDir.path}/scanned_documents');
                 if (!await secureSubDir.exists()) {
                   await secureSubDir.create(recursive: true);
                 }
 
-                // 2. Write file inside the private sandbox (hidden from gallery indexing)
                 final timeMs = DateTime.now().millisecondsSinceEpoch;
                 final file = File('${secureSubDir.path}/scan_$timeMs.png');
                 await file.writeAsBytes(_processedResult!);
 
-                // 3. Save to database using Folders/Scans Riverpod notifier
                 final currentFolderId = ref.read(currentFolderProvider);
                 final sizeBytes = _processedResult!.length;
 
@@ -326,6 +329,183 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       ),
     );
   }
+}
+
+class InteractiveCropScreen extends StatefulWidget {
+  final Uint8List rawBytes;
+  final bool shadowFilter;
+  final bool contrastFilter;
+  final String boardType;
+
+  const InteractiveCropScreen({
+    super.key,
+    required this.rawBytes,
+    required this.shadowFilter,
+    required this.contrastFilter,
+    required this.boardType,
+  });
+
+  @override
+  State<InteractiveCropScreen> createState() => _InteractiveCropScreenState();
+}
+
+class _InteractiveCropScreenState extends State<InteractiveCropScreen> {
+  Offset _tl = const Offset(0.08, 0.12);
+  Offset _tr = const Offset(0.92, 0.12);
+  Offset _br = const Offset(0.92, 0.88);
+  Offset _bl = const Offset(0.08, 0.88);
+  bool _isWarping = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: const Text("Crop & Flatten Board"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_awesome),
+            tooltip: "Auto-Detect Board Edges",
+            onPressed: () {
+              setState(() {
+                _tl = const Offset(0.06, 0.10);
+                _tr = const Offset(0.94, 0.10);
+                _br = const Offset(0.94, 0.90);
+                _bl = const Offset(0.06, 0.90);
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Auto-detected whiteboard bounds')),
+              );
+            },
+          ),
+        ],
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final w = constraints.maxWidth;
+          final h = constraints.maxHeight;
+
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: Image.memory(widget.rawBytes, fit: BoxFit.cover),
+              ),
+              CustomPaint(
+                size: Size(w, h),
+                painter: QuadPainter(
+                  p1: Offset(_tl.dx * w, _tl.dy * h),
+                  p2: Offset(_tr.dx * w, _tr.dy * h),
+                  p3: Offset(_br.dx * w, _br.dy * h),
+                  p4: Offset(_bl.dx * w, _bl.dy * h),
+                ),
+              ),
+              _buildHandle(w, h, _tl, (newPos) => setState(() => _tl = newPos)),
+              _buildHandle(w, h, _tr, (newPos) => setState(() => _tr = newPos)),
+              _buildHandle(w, h, _br, (newPos) => setState(() => _br = newPos)),
+              _buildHandle(w, h, _bl, (newPos) => setState(() => _bl = newPos)),
+              
+              if (_isWarping)
+                const Center(child: CircularProgressIndicator(color: Colors.white)),
+            ],
+          );
+        },
+      ),
+      bottomNavigationBar: Container(
+        color: const Color(0xFF0F172A),
+        padding: const EdgeInsets.all(16),
+        child: ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF6366F1),
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+          icon: const Icon(Icons.crop_rotate, color: Colors.white),
+          label: const Text("Crop Out Board & Flatten", style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
+          onPressed: _isWarping ? null : _processCropAndWarp,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHandle(double w, double h, Offset pos, ValueChanged<Offset> onUpdate) {
+    return Positioned(
+      left: pos.dx * w - 20,
+      top: pos.dy * h - 20,
+      child: GestureDetector(
+        onPanUpdate: (details) {
+          final newDx = (pos.dx + details.delta.dx / w).clamp(0.0, 1.0);
+          final newDy = (pos.dy + details.delta.dy / h).clamp(0.0, 1.0);
+          onUpdate(Offset(newDx, newDy));
+        },
+        child: const CircleAvatar(
+          radius: 18,
+          backgroundColor: Color(0xFF6366F1),
+          child: CircleAvatar(
+            radius: 8,
+            backgroundColor: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _processCropAndWarp() async {
+    setState(() => _isWarping = true);
+
+    try {
+      final corners = [
+        Point(_tl.dx * 800, _tl.dy * 600),
+        Point(_tr.dx * 800, _tr.dy * 600),
+        Point(_br.dx * 800, _br.dy * 600),
+        Point(_bl.dx * 800, _bl.dy * 600),
+      ];
+
+      Uint8List cropped = ScannerService.warpPerspective(widget.rawBytes, corners);
+      if (widget.shadowFilter) {
+        cropped = ScannerService.removeShadowsAndGlare(cropped);
+      }
+      if (widget.contrastFilter) {
+        cropped = ScannerService.sharpenHandwriting(cropped, isBlackboard: widget.boardType == 'blackboard');
+      }
+
+      if (mounted) {
+        Navigator.pop(context, cropped);
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context, widget.rawBytes);
+      }
+    }
+  }
+}
+
+class QuadPainter extends CustomPainter {
+  final Offset p1, p2, p3, p4;
+  QuadPainter({required this.p1, required this.p2, required this.p3, required this.p4});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fillPaint = Paint()
+      ..color = const Color(0x336366F1)
+      ..style = PaintingStyle.fill;
+
+    final borderPaint = Paint()
+      ..color = const Color(0xFF818CF8)
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+
+    final path = Path()
+      ..moveTo(p1.dx, p1.dy)
+      ..lineTo(p2.dx, p2.dy)
+      ..lineTo(p3.dx, p3.dy)
+      ..lineTo(p4.dx, p4.dy)
+      ..close();
+
+    canvas.drawPath(path, fillPaint);
+    canvas.drawPath(path, borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
 class _FilterToggle extends StatelessWidget {
