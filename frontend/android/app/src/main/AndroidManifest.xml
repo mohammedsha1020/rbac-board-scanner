@@ -21,6 +21,7 @@
 
     <application
         android:label="RBAC Board Scanner"
+        android:allowBackup="false"
         android:usesCleartextTraffic="true"
         android:requestLegacyExternalStorage="true"
         android:name="${applicationName}"
