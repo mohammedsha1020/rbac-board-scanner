@@ -18,12 +18,24 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Public routes
+// Public Auth Routes & Aliases
 app.post('/api/auth/login', login);
+app.post('/auth/login', login);
+app.post('/login', login);
+
 app.post('/api/auth/register', signupPublic);
+app.post('/auth/register', signupPublic);
+app.post('/register', signupPublic);
+app.post('/api/auth/signup', signupPublic);
+app.post('/signup', signupPublic);
+
+// Helpful GET messages for browser testing
+app.get('/api/auth/login', (req, res) => res.json({ message: "Auth login endpoint active. Send a POST request with username and password." }));
+app.get('/api/auth/register', (req, res) => res.json({ message: "Auth register endpoint active. Send a POST request with username, email, and password." }));
 
 // Authenticated general routes
 app.get('/api/auth/profile', authenticateToken, getProfile);
+app.get('/auth/profile', authenticateToken, getProfile);
 
 // Scanner & Folder routes (L1, L2, L3)
 app.get('/api/folders', authenticateToken, getFolders);
@@ -48,6 +60,10 @@ app.get('/api/admin/audit-logs', authenticateToken, requireRole(['GOD']), getAud
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'RBAC Board Scanner Backend Server is Online' });
 });
 
 // 404 Fallback JSON Handler
