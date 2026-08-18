@@ -33,18 +33,33 @@ class AuthNotifier extends StateNotifier<AuthState> {
     _checkInitialSession();
   }
 
+  Map<String, dynamic> _parseBodySafely(String body, int statusCode) {
+    try {
+      final trimmed = body.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        final parsed = json.decode(trimmed);
+        if (parsed is Map<String, dynamic>) {
+          return parsed;
+        }
+      }
+    } catch (_) {}
+    return {'error': 'Server status HTTP $statusCode'};
+  }
+
   Future<void> _checkInitialSession() async {
     final token = await _apiClient.getToken();
     if (token != null) {
       try {
         final response = await _apiClient.get('/api/auth/profile');
         if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          state = AuthState(user: User.fromJson(data), token: token);
-        } else {
-          await _apiClient.clearToken();
-          state = AuthState();
+          final data = _parseBodySafely(response.body, response.statusCode);
+          if (data.containsKey('id')) {
+            state = AuthState(user: User.fromJson(data), token: token);
+            return;
+          }
         }
+        await _apiClient.clearToken();
+        state = AuthState();
       } catch (e) {
         state = AuthState(errorMessage: 'Offline session active');
       }
@@ -59,8 +74,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
         'password': password,
       });
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+      final data = _parseBodySafely(response.body, response.statusCode);
+
+      if (response.statusCode == 200 && data.containsKey('token') && data.containsKey('user')) {
         final token = data['token'];
         final user = User.fromJson(data['user']);
         
@@ -68,7 +84,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
         state = AuthState(user: user, token: token);
         return true;
       } else {
-        final data = json.decode(response.body);
         state = state.copyWith(
           isLoading: false,
           errorMessage: data['error'] ?? 'Login failed (${response.statusCode})',
@@ -94,8 +109,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
         'password': password,
       });
 
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        final data = json.decode(response.body);
+      final data = _parseBodySafely(response.body, response.statusCode);
+
+      if ((response.statusCode == 201 || response.statusCode == 200) && data.containsKey('token') && data.containsKey('user')) {
         final token = data['token'];
         final user = User.fromJson(data['user']);
         
@@ -103,7 +119,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
         state = AuthState(user: user, token: token);
         return true;
       } else {
-        final data = json.decode(response.body);
         state = state.copyWith(
           isLoading: false,
           errorMessage: data['error'] ?? 'Registration failed (${response.statusCode})',

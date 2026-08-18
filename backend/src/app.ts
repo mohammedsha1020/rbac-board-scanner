@@ -50,6 +50,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// 404 Fallback JSON Handler
+app.use((req, res) => {
+  res.status(404).json({ error: `Endpoint ${req.method} ${req.path} not found` });
+});
+
 // Centralized Error Handling Middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('[SERVER ERROR]', err);
