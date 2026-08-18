@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -32,11 +33,13 @@ class ApiClient {
     final token = await getToken();
     final url = Uri.parse('$baseUrl$path');
     try {
-      final response = await _client.get(url, headers: _buildHeaders(token));
+      final response = await _client
+          .get(url, headers: _buildHeaders(token))
+          .timeout(const Duration(seconds: 12));
       _checkUnauthorized(response);
       return response;
     } catch (e) {
-      rethrow;
+      throw Exception('Network error connecting to $url. Check connection or server status.');
     }
   }
 
@@ -44,15 +47,17 @@ class ApiClient {
     final token = await getToken();
     final url = Uri.parse('$baseUrl$path');
     try {
-      final response = await _client.post(
-        url,
-        headers: _buildHeaders(token),
-        body: json.encode(body),
-      );
+      final response = await _client
+          .post(
+            url,
+            headers: _buildHeaders(token),
+            body: json.encode(body),
+          )
+          .timeout(const Duration(seconds: 12));
       _checkUnauthorized(response);
       return response;
     } catch (e) {
-      rethrow;
+      throw Exception('Network error connecting to $url. Check connection or server status.');
     }
   }
 
@@ -60,11 +65,13 @@ class ApiClient {
     final token = await getToken();
     final url = Uri.parse('$baseUrl$path');
     try {
-      final response = await _client.delete(url, headers: _buildHeaders(token));
+      final response = await _client
+          .delete(url, headers: _buildHeaders(token))
+          .timeout(const Duration(seconds: 12));
       _checkUnauthorized(response);
       return response;
     } catch (e) {
-      rethrow;
+      throw Exception('Network error connecting to $url. Check connection or server status.');
     }
   }
 
@@ -72,22 +79,23 @@ class ApiClient {
     final token = await getToken();
     final url = Uri.parse('$baseUrl$path');
     try {
-      final response = await _client.put(
-        url,
-        headers: _buildHeaders(token),
-        body: json.encode(body),
-      );
+      final response = await _client
+          .put(
+            url,
+            headers: _buildHeaders(token),
+            body: json.encode(body),
+          )
+          .timeout(const Duration(seconds: 12));
       _checkUnauthorized(response);
       return response;
     } catch (e) {
-      rethrow;
+      throw Exception('Network error connecting to $url. Check connection or server status.');
     }
   }
 
   void _checkUnauthorized(http.Response response) {
     if (response.statusCode == 401) {
       clearToken();
-      // Handle navigation redirect to login via dynamic callback or state notifier
     }
   }
 }
