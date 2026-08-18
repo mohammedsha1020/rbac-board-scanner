@@ -46,8 +46,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           state = AuthState();
         }
       } catch (e) {
-        state = AuthState(errorMessage: 'Offline session loaded');
-        // Retrieve offline profile from local cache if wanted
+        state = AuthState(errorMessage: 'Offline session active');
       }
     }
   }
@@ -72,14 +71,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
         final data = json.decode(response.body);
         state = state.copyWith(
           isLoading: false,
-          errorMessage: data['error'] ?? 'Login failed',
+          errorMessage: data['error'] ?? 'Login failed (${response.statusCode})',
         );
         return false;
       }
     } catch (e) {
+      final msg = e.toString().replaceAll('Exception: ', '');
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Network error. Please verify your connection.',
+        errorMessage: msg,
       );
       return false;
     }
@@ -106,14 +106,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
         final data = json.decode(response.body);
         state = state.copyWith(
           isLoading: false,
-          errorMessage: data['error'] ?? 'Registration failed',
+          errorMessage: data['error'] ?? 'Registration failed (${response.statusCode})',
         );
         return false;
       }
     } catch (e) {
+      final msg = e.toString().replaceAll('Exception: ', '');
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Network error. Please verify your connection.',
+        errorMessage: msg,
       );
       return false;
     }
@@ -126,7 +127,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 }
 
 final apiClientProvider = Provider<ApiClient>((ref) {
-  return ApiClient(baseUrl: 'http://13.232.148.24:5000'); // AWS Lightsail Backend Server
+  return ApiClient(baseUrl: 'http://13.232.148.24:5000');
 });
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {

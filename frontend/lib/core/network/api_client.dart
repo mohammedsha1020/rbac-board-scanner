@@ -39,7 +39,7 @@ class ApiClient {
       _checkUnauthorized(response);
       return response;
     } catch (e) {
-      throw Exception('Network error connecting to $url. Check connection or server status.');
+      throw Exception('Connection error reaching $url: $e');
     }
   }
 
@@ -57,7 +57,7 @@ class ApiClient {
       _checkUnauthorized(response);
       return response;
     } catch (e) {
-      throw Exception('Network error connecting to $url. Check connection or server status.');
+      throw Exception('Connection error reaching $url: $e');
     }
   }
 
@@ -71,7 +71,7 @@ class ApiClient {
       _checkUnauthorized(response);
       return response;
     } catch (e) {
-      throw Exception('Network error connecting to $url. Check connection or server status.');
+      throw Exception('Connection error reaching $url: $e');
     }
   }
 
@@ -89,7 +89,7 @@ class ApiClient {
       _checkUnauthorized(response);
       return response;
     } catch (e) {
-      throw Exception('Network error connecting to $url. Check connection or server status.');
+      throw Exception('Connection error reaching $url: $e');
     }
   }
 
