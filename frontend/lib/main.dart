@@ -179,10 +179,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   if (authState.errorMessage != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 16),
-                      child: Text(
-                        authState.errorMessage!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600),
+                      child: Container(
+                        constraints: const BoxConstraints(maxHeight: 120),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                        ),
+                        child: SingleChildScrollView(
+                          child: SelectableText(
+                            authState.errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                        ),
                       ),
                     ),
 

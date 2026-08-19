@@ -44,12 +44,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
         }
       }
     } catch (_) {}
-    // Return empty map if body isn't valid JSON
     return {};
   }
 
   /// Build a human-readable error message from an HTTP response
-  String _errorFromResponse(int statusCode, String body) {
+  String _errorFromResponse(int statusCode, String body, String url) {
     final data = _safeJsonDecode(body);
     if (data.containsKey('error')) {
       return '${data['error']}';
@@ -57,11 +56,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (data.containsKey('message')) {
       return '${data['message']}';
     }
-    // If body is HTML or garbage, don't show it
-    if (body.trim().startsWith('<')) {
-      return 'Server returned HTML instead of JSON (HTTP $statusCode). Server may need updating.';
-    }
-    return 'Server error (HTTP $statusCode)';
+    // Show diagnostic info: status code, URL, and body preview
+    final bodyPreview = body.length > 80 ? body.substring(0, 80) : body;
+    return 'HTTP $statusCode from $url\nBody: $bodyPreview';
   }
 
   Future<void> _checkInitialSession() async {
@@ -89,6 +86,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<bool> login(String username, String password) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
+    final url = '${_apiClient.baseUrl}/api/auth/login';
     try {
       final response = await _apiClient.post('/api/auth/login', {
         'username': username,
@@ -105,15 +103,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
           return true;
         }
         // 200 but unexpected body shape
+        final bodySnippet = response.body.length > 120
+            ? response.body.substring(0, 120)
+            : response.body;
         state = state.copyWith(
           isLoading: false,
-          errorMessage: 'Unexpected server response. Body: ${response.body.length > 100 ? response.body.substring(0, 100) : response.body}',
+          errorMessage: 'Server returned 200 but missing token/user.\nURL: $url\nBody: $bodySnippet',
         );
         return false;
       } else {
         state = state.copyWith(
           isLoading: false,
-          errorMessage: _errorFromResponse(response.statusCode, response.body),
+          errorMessage: _errorFromResponse(response.statusCode, response.body, url),
         );
         return false;
       }
@@ -128,6 +129,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<bool> register(String username, String email, String password) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
+    final url = '${_apiClient.baseUrl}/api/auth/register';
     try {
       final response = await _apiClient.post('/api/auth/register', {
         'username': username,
@@ -146,13 +148,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
         }
         state = state.copyWith(
           isLoading: false,
-          errorMessage: 'Unexpected server response. Body: ${response.body.length > 100 ? response.body.substring(0, 100) : response.body}',
+          errorMessage: 'Server returned ${response.statusCode} but missing token/user.\nURL: $url',
         );
         return false;
       } else {
         state = state.copyWith(
           isLoading: false,
-          errorMessage: _errorFromResponse(response.statusCode, response.body),
+          errorMessage: _errorFromResponse(response.statusCode, response.body, url),
         );
         return false;
       }
