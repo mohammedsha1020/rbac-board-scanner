@@ -174,6 +174,49 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
+export const reportDeviceInfo = async (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user;
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const { deviceName, androidVersion, deviceModel, appVersion } = req.body;
+
+  try {
+    // Check if user already has a device record
+    const existingDevice = await prisma.deviceInfo.findFirst({
+      where: { userId: user.id }
+    });
+
+    if (existingDevice) {
+      const updated = await prisma.deviceInfo.update({
+        where: { id: existingDevice.id },
+        data: {
+          deviceName: deviceName || existingDevice.deviceName,
+          androidVersion: androidVersion || existingDevice.androidVersion,
+          deviceModel: deviceModel || existingDevice.deviceModel,
+          appVersion: appVersion || existingDevice.appVersion,
+          syncStatus: 'Synced'
+        }
+      });
+      return res.json(updated);
+    } else {
+      const newDevice = await prisma.deviceInfo.create({
+        data: {
+          userId: user.id,
+          deviceName: deviceName || 'Unknown Device',
+          androidVersion: androidVersion || 'Unknown',
+          deviceModel: deviceModel || 'Unknown',
+          appVersion: appVersion || '1.0.0',
+          storageUsage: 0,
+          syncStatus: 'Synced'
+        }
+      });
+      return res.json(newDevice);
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 export const signupPublic = async (req: AuthenticatedRequest, res: Response) => {
   const { username, email, password } = req.body;
 

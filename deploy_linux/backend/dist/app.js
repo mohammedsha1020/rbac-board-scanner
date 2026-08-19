@@ -28,6 +28,7 @@ app.get('/api/auth/register', (req, res) => res.json({ message: "Auth register e
 // Authenticated general routes
 app.get('/api/auth/profile', auth_1.authenticateToken, auth_controller_1.getProfile);
 app.get('/auth/profile', auth_1.authenticateToken, auth_controller_1.getProfile);
+app.post('/api/auth/device', auth_1.authenticateToken, auth_controller_1.reportDeviceInfo);
 // Scanner & Folder routes (L1, L2, L3)
 app.get('/api/folders', auth_1.authenticateToken, scan_controller_1.getFolders);
 app.post('/api/folders', auth_1.authenticateToken, scan_controller_1.createFolder);

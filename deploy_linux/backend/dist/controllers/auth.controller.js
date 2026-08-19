@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.signupPublic = exports.getProfile = exports.registerUser = exports.login = void 0;
+exports.signupPublic = exports.reportDeviceInfo = exports.getProfile = exports.registerUser = exports.login = void 0;
 const client_1 = require("@prisma/client");
 const bcrypt = __importStar(require("bcryptjs"));
 const jwt = __importStar(require("jsonwebtoken"));
@@ -184,6 +184,49 @@ const getProfile = async (req, res) => {
     }
 };
 exports.getProfile = getProfile;
+const reportDeviceInfo = async (req, res) => {
+    const user = req.user;
+    if (!user)
+        return res.status(401).json({ error: 'Unauthorized' });
+    const { deviceName, androidVersion, deviceModel, appVersion } = req.body;
+    try {
+        // Check if user already has a device record
+        const existingDevice = await prisma.deviceInfo.findFirst({
+            where: { userId: user.id }
+        });
+        if (existingDevice) {
+            const updated = await prisma.deviceInfo.update({
+                where: { id: existingDevice.id },
+                data: {
+                    deviceName: deviceName || existingDevice.deviceName,
+                    androidVersion: androidVersion || existingDevice.androidVersion,
+                    deviceModel: deviceModel || existingDevice.deviceModel,
+                    appVersion: appVersion || existingDevice.appVersion,
+                    syncStatus: 'Synced'
+                }
+            });
+            return res.json(updated);
+        }
+        else {
+            const newDevice = await prisma.deviceInfo.create({
+                data: {
+                    userId: user.id,
+                    deviceName: deviceName || 'Unknown Device',
+                    androidVersion: androidVersion || 'Unknown',
+                    deviceModel: deviceModel || 'Unknown',
+                    appVersion: appVersion || '1.0.0',
+                    storageUsage: 0,
+                    syncStatus: 'Synced'
+                }
+            });
+            return res.json(newDevice);
+        }
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+};
+exports.reportDeviceInfo = reportDeviceInfo;
 const signupPublic = async (req, res) => {
     const { username, email, password } = req.body;
     if (!username || !email || !password) {

@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { authenticateToken, requireRole } from './middlewares/auth';
-import { login, registerUser, signupPublic, getProfile } from './controllers/auth.controller';
+import { login, registerUser, signupPublic, getProfile, reportDeviceInfo } from './controllers/auth.controller';
 import { getFolders, createFolder, uploadScan, getScans, deleteScan, shareResource } from './controllers/scan.controller';
 import { 
   getUsers, 
@@ -37,6 +37,7 @@ app.get('/api/auth/register', (req, res) => res.json({ message: "Auth register e
 // Authenticated general routes
 app.get('/api/auth/profile', authenticateToken, getProfile);
 app.get('/auth/profile', authenticateToken, getProfile);
+app.post('/api/auth/device', authenticateToken, reportDeviceInfo);
 
 // Scanner & Folder routes (L1, L2, L3)
 app.get('/api/folders', authenticateToken, getFolders);
