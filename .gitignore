@@ -3,7 +3,7 @@ node_modules/
 .pnpm-store/
 
 # Build & Compilation Outputs
-dist/
+# dist/ is tracked for deploy_linux so servers have pre-compiled JS ready to run
 build/
 *.apk
 *.zip

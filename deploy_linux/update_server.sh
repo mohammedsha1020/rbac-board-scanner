@@ -29,6 +29,7 @@ fi
 
 npm install
 npx prisma generate
+npm run build
 
 # 4. Restart PM2 Daemon
 echo -e "${YELLOW}[*] Restarting PM2 cluster daemon...${NC}"
