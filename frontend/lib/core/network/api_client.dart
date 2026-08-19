@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -25,6 +26,7 @@ class ApiClient {
   Map<String, String> _buildHeaders(String? token) {
     return {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
     };
   }
@@ -35,11 +37,16 @@ class ApiClient {
     try {
       final response = await _client
           .get(url, headers: _buildHeaders(token))
-          .timeout(const Duration(seconds: 12));
+          .timeout(const Duration(seconds: 15));
       _checkUnauthorized(response);
       return response;
+    } on TimeoutException {
+      throw Exception('Request timed out connecting to server. Check your internet connection.');
+    } on SocketException catch (e) {
+      throw Exception('Cannot reach server at $baseUrl. Network error: ${e.message}');
     } catch (e) {
-      throw Exception('Connection error reaching $url: $e');
+      if (e is Exception) rethrow;
+      throw Exception('Connection error: $e');
     }
   }
 
@@ -53,11 +60,16 @@ class ApiClient {
             headers: _buildHeaders(token),
             body: json.encode(body),
           )
-          .timeout(const Duration(seconds: 12));
+          .timeout(const Duration(seconds: 15));
       _checkUnauthorized(response);
       return response;
+    } on TimeoutException {
+      throw Exception('Request timed out connecting to server. Check your internet connection.');
+    } on SocketException catch (e) {
+      throw Exception('Cannot reach server at $baseUrl. Network error: ${e.message}');
     } catch (e) {
-      throw Exception('Connection error reaching $url: $e');
+      if (e is Exception) rethrow;
+      throw Exception('Connection error: $e');
     }
   }
 
@@ -67,11 +79,16 @@ class ApiClient {
     try {
       final response = await _client
           .delete(url, headers: _buildHeaders(token))
-          .timeout(const Duration(seconds: 12));
+          .timeout(const Duration(seconds: 15));
       _checkUnauthorized(response);
       return response;
+    } on TimeoutException {
+      throw Exception('Request timed out connecting to server. Check your internet connection.');
+    } on SocketException catch (e) {
+      throw Exception('Cannot reach server at $baseUrl. Network error: ${e.message}');
     } catch (e) {
-      throw Exception('Connection error reaching $url: $e');
+      if (e is Exception) rethrow;
+      throw Exception('Connection error: $e');
     }
   }
 
@@ -85,11 +102,16 @@ class ApiClient {
             headers: _buildHeaders(token),
             body: json.encode(body),
           )
-          .timeout(const Duration(seconds: 12));
+          .timeout(const Duration(seconds: 15));
       _checkUnauthorized(response);
       return response;
+    } on TimeoutException {
+      throw Exception('Request timed out connecting to server. Check your internet connection.');
+    } on SocketException catch (e) {
+      throw Exception('Cannot reach server at $baseUrl. Network error: ${e.message}');
     } catch (e) {
-      throw Exception('Connection error reaching $url: $e');
+      if (e is Exception) rethrow;
+      throw Exception('Connection error: $e');
     }
   }
 

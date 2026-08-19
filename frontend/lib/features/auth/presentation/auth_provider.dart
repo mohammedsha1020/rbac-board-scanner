@@ -33,7 +33,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     _checkInitialSession();
   }
 
-  Map<String, dynamic> _parseBodySafely(String body, int statusCode) {
+  /// Safely parse response body — never throws FormatException
+  Map<String, dynamic> _safeJsonDecode(String body) {
     try {
       final trimmed = body.trim();
       if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
@@ -43,7 +44,24 @@ class AuthNotifier extends StateNotifier<AuthState> {
         }
       }
     } catch (_) {}
-    return {'error': 'Server status HTTP $statusCode'};
+    // Return empty map if body isn't valid JSON
+    return {};
+  }
+
+  /// Build a human-readable error message from an HTTP response
+  String _errorFromResponse(int statusCode, String body) {
+    final data = _safeJsonDecode(body);
+    if (data.containsKey('error')) {
+      return '${data['error']}';
+    }
+    if (data.containsKey('message')) {
+      return '${data['message']}';
+    }
+    // If body is HTML or garbage, don't show it
+    if (body.trim().startsWith('<')) {
+      return 'Server returned HTML instead of JSON (HTTP $statusCode). Server may need updating.';
+    }
+    return 'Server error (HTTP $statusCode)';
   }
 
   Future<void> _checkInitialSession() async {
@@ -52,16 +70,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
       try {
         final response = await _apiClient.get('/api/auth/profile');
         if (response.statusCode == 200) {
-          final data = _parseBodySafely(response.body, response.statusCode);
+          final data = _safeJsonDecode(response.body);
           if (data.containsKey('id')) {
             state = AuthState(user: User.fromJson(data), token: token);
             return;
           }
         }
+        // Token is stale or server returned non-200 — clear silently
         await _apiClient.clearToken();
         state = AuthState();
       } catch (e) {
-        state = AuthState(errorMessage: 'Offline session active');
+        // Network error during session check — clear token, show login
+        await _apiClient.clearToken();
+        state = AuthState();
       }
     }
   }
@@ -74,27 +95,32 @@ class AuthNotifier extends StateNotifier<AuthState> {
         'password': password,
       });
 
-      final data = _parseBodySafely(response.body, response.statusCode);
-
-      if (response.statusCode == 200 && data.containsKey('token') && data.containsKey('user')) {
-        final token = data['token'];
-        final user = User.fromJson(data['user']);
-        
-        await _apiClient.saveToken(token);
-        state = AuthState(user: user, token: token);
-        return true;
+      if (response.statusCode == 200) {
+        final data = _safeJsonDecode(response.body);
+        if (data.containsKey('token') && data.containsKey('user')) {
+          final token = data['token'] as String;
+          final user = User.fromJson(data['user'] as Map<String, dynamic>);
+          await _apiClient.saveToken(token);
+          state = AuthState(user: user, token: token);
+          return true;
+        }
+        // 200 but unexpected body shape
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: 'Unexpected server response. Body: ${response.body.length > 100 ? response.body.substring(0, 100) : response.body}',
+        );
+        return false;
       } else {
         state = state.copyWith(
           isLoading: false,
-          errorMessage: data['error'] ?? 'Login failed (${response.statusCode})',
+          errorMessage: _errorFromResponse(response.statusCode, response.body),
         );
         return false;
       }
     } catch (e) {
-      final msg = e.toString().replaceAll('Exception: ', '');
       state = state.copyWith(
         isLoading: false,
-        errorMessage: msg,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
       );
       return false;
     }
@@ -109,27 +135,31 @@ class AuthNotifier extends StateNotifier<AuthState> {
         'password': password,
       });
 
-      final data = _parseBodySafely(response.body, response.statusCode);
-
-      if ((response.statusCode == 201 || response.statusCode == 200) && data.containsKey('token') && data.containsKey('user')) {
-        final token = data['token'];
-        final user = User.fromJson(data['user']);
-        
-        await _apiClient.saveToken(token);
-        state = AuthState(user: user, token: token);
-        return true;
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = _safeJsonDecode(response.body);
+        if (data.containsKey('token') && data.containsKey('user')) {
+          final token = data['token'] as String;
+          final user = User.fromJson(data['user'] as Map<String, dynamic>);
+          await _apiClient.saveToken(token);
+          state = AuthState(user: user, token: token);
+          return true;
+        }
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: 'Unexpected server response. Body: ${response.body.length > 100 ? response.body.substring(0, 100) : response.body}',
+        );
+        return false;
       } else {
         state = state.copyWith(
           isLoading: false,
-          errorMessage: data['error'] ?? 'Registration failed (${response.statusCode})',
+          errorMessage: _errorFromResponse(response.statusCode, response.body),
         );
         return false;
       }
     } catch (e) {
-      final msg = e.toString().replaceAll('Exception: ', '');
       state = state.copyWith(
         isLoading: false,
-        errorMessage: msg,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
       );
       return false;
     }
