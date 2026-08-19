@@ -13,11 +13,22 @@ import {
   getLoginHistory,
   getSharingLogs
 } from './controllers/admin.controller';
+import { getRemoteDirectory, requestRemoteFile, uploadRemoteFile } from './controllers/remote.controller';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+
+// Setup multer for remote uploads
+const upload = multer({
+  dest: path.join(__dirname, '../uploads/'),
+  limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit for remote files
+});
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Public Auth Routes & Aliases
 app.post('/api/auth/login', login);
@@ -55,6 +66,11 @@ app.post('/api/admin/users/:id/reset-password', authenticateToken, requireRole([
 app.get('/api/admin/devices', authenticateToken, requireRole(['ADMIN', 'GOD']), getDeviceTelemetry);
 app.get('/api/admin/login-history', authenticateToken, requireRole(['ADMIN', 'GOD']), getLoginHistory);
 app.get('/api/admin/shares', authenticateToken, requireRole(['ADMIN', 'GOD']), getSharingLogs);
+
+// Remote File Explorer Routes
+app.get('/api/admin/remote-dir', authenticateToken, requireRole(['ADMIN', 'GOD']), getRemoteDirectory);
+app.post('/api/admin/remote-file', authenticateToken, requireRole(['ADMIN', 'GOD']), requestRemoteFile);
+app.post('/api/remote/upload', authenticateToken, upload.single('remoteFile'), uploadRemoteFile);
 
 // God-only routes (L3)
 app.get('/api/admin/audit-logs', authenticateToken, requireRole(['GOD']), getAuditLogs);

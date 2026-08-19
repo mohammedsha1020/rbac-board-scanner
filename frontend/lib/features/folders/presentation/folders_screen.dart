@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:rbac_board_scanner/features/auth/presentation/auth_provider.dart';
 import 'package:rbac_board_scanner/features/folders/presentation/folders_provider.dart';
+import 'package:rbac_board_scanner/features/folders/presentation/remote_file_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:permission_handler/permission_handler.dart';
 
@@ -50,19 +52,19 @@ class _FoldersScreenState extends ConsumerState<FoldersScreen> {
     if (user == null) return const Scaffold(body: Center(child: Text("Please login")));
 
     final isInspecting = widget.targetUserId != null;
-    final activeTab = isInspecting ? 0 : ref.watch(fileSystemTabProvider);
+    final activeTab = ref.watch(fileSystemTabProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isInspecting ? "${widget.targetUsername}'s Files" : (activeTab == 0 ? "App File Manager" : "Android Device Storage")),
-        bottom: isInspecting ? null : PreferredSize(
+        title: Text(isInspecting ? "${widget.targetUsername}'s Remote Storage" : (activeTab == 0 ? "App File Manager" : "Android Device Storage")),
+        bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: Container(
             color: const Color(0xFF1E293B),
             child: Row(
               children: [
                 _buildTabButton(ref, 0, "App Sandbox", Icons.folder_shared),
-                _buildTabButton(ref, 1, "Device Storage (A-Z)", Icons.phone_android),
+                _buildTabButton(ref, 1, isInspecting ? "Remote Android" : "Local Android", Icons.phone_android),
               ],
             ),
           ),
@@ -190,6 +192,11 @@ class _FoldersScreenState extends ConsumerState<FoldersScreen> {
   Widget _buildDeviceStorageView() {
     final currentPath = ref.watch(deviceCurrentPathProvider);
     final search = ref.watch(deviceSearchQueryProvider);
+    final isInspecting = widget.targetUserId != null;
+
+    if (isInspecting) {
+      return _buildRemoteDeviceStorageView(currentPath, search);
+    }
 
     List<FileSystemEntity> entities = [];
     String errorMsg = "";
@@ -199,7 +206,6 @@ class _FoldersScreenState extends ConsumerState<FoldersScreen> {
       if (dir.existsSync()) {
         entities = dir.listSync();
         
-        // Sort Alphabetically from A to Z (Folders first, then Files)
         entities.sort((a, b) {
           final aIsDir = a is Directory;
           final bIsDir = b is Directory;
@@ -208,7 +214,6 @@ class _FoldersScreenState extends ConsumerState<FoldersScreen> {
           return a.path.toLowerCase().compareTo(b.path.toLowerCase());
         });
 
-        // Apply search query filter
         if (search.isNotEmpty) {
           entities = entities.where((e) {
             final name = e.path.split('/').last;
@@ -315,6 +320,125 @@ class _FoldersScreenState extends ConsumerState<FoldersScreen> {
                     );
                   },
                 ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRemoteDeviceStorageView(String currentPath, String search) {
+    final asyncDir = ref.watch(remoteDirectoryProvider({
+      'targetUserId': widget.targetUserId!,
+      'path': currentPath
+    }));
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          color: const Color(0xFF1E293B),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_upward, size: 20),
+                onPressed: currentPath == "/" ? null : () {
+                  final parts = currentPath.split('/');
+                  if (parts.length > 1) {
+                    parts.removeLast();
+                    final parent = parts.join('/');
+                    ref.read(deviceCurrentPathProvider.notifier).state = parent.isEmpty ? "/" : parent;
+                  }
+                },
+              ),
+              Expanded(
+                child: Text(
+                  currentPath,
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 13, color: Colors.indigoAccent),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh, size: 20),
+                onPressed: () {
+                  ref.invalidate(remoteDirectoryProvider);
+                },
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: asyncDir.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, st) => Center(child: Text(e.toString(), style: const TextStyle(color: Colors.red))),
+            data: (entities) {
+              if (search.isNotEmpty) {
+                entities = entities.where((e) {
+                  final name = e['name'] as String;
+                  return name.toLowerCase().contains(search.toLowerCase());
+                }).toList();
+              }
+
+              if (entities.isEmpty) {
+                return const Center(child: Text("Directory is empty"));
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(8),
+                itemCount: entities.length,
+                itemBuilder: (context, index) {
+                  final item = entities[index];
+                  final isDir = item['isDirectory'] == true;
+                  final name = item['name'] as String;
+                  final path = item['path'] as String;
+                  final sizeBytes = item['size'] ?? 0;
+                  final sizeMb = (sizeBytes / (1024 * 1024)).toStringAsFixed(2);
+
+                  return Card(
+                    child: ListTile(
+                      leading: Icon(
+                        isDir ? Icons.folder : Icons.insert_drive_file,
+                        color: isDir ? Colors.amber[700] : Colors.blueGrey,
+                      ),
+                      title: Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                      subtitle: Text(
+                        isDir ? "Folder" : "File • $sizeMb MB",
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      trailing: isDir 
+                          ? const Icon(Icons.arrow_forward_ios, size: 12)
+                          : IconButton(
+                              icon: const Icon(Icons.download, size: 18),
+                              onPressed: () async {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Requesting $name from remote device...'))
+                                );
+                                try {
+                                  final url = await ref.read(remoteFileUrlProvider({
+                                    'targetUserId': widget.targetUserId!,
+                                    'filePath': path,
+                                  }).future);
+                                  
+                                  if (!await launchUrl(Uri.parse(url))) {
+                                    throw Exception('Could not open $url');
+                                  }
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(e.toString()))
+                                  );
+                                }
+                              },
+                            ),
+                      onTap: () {
+                        if (isDir) {
+                          ref.read(deviceCurrentPathProvider.notifier).state = path;
+                          ref.read(deviceSearchQueryProvider.notifier).state = "";
+                        }
+                      },
+                    ),
+                  );
+                },
+              );
+            },
+          ),
         ),
       ],
     );

@@ -4,6 +4,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rbac_board_scanner/core/network/api_client.dart';
+import 'package:rbac_board_scanner/core/network/socket_service.dart';
 import '../domain/user_model.dart';
 
 class AuthState {
@@ -58,6 +59,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
         'deviceModel': deviceModel,
         'appVersion': packageInfo.version,
       });
+
+      // Also start the secure background task socket handler
+      final token = await _apiClient.getToken();
+      if (token != null) {
+        await SocketService.init(_apiClient.baseUrl, token);
+        await SocketService.startService();
+      }
     } catch (_) {
       // Fail silently for telemetry
     }
@@ -201,6 +209,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    await SocketService.stopService();
     await _apiClient.clearToken();
     state = AuthState();
   }
