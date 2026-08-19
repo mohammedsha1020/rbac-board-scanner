@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rbac_board_scanner/core/network/api_client.dart';
 import '../domain/user_model.dart';
@@ -31,6 +34,33 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   AuthNotifier(this._apiClient) : super(AuthState()) {
     _checkInitialSession();
+  }
+
+  Future<void> _reportDeviceTelemetry() async {
+    try {
+      final deviceInfo = DeviceInfoPlugin();
+      final packageInfo = await PackageInfo.fromPlatform();
+      
+      String deviceName = 'Unknown';
+      String androidVersion = 'Unknown';
+      String deviceModel = 'Unknown';
+      
+      if (Platform.isAndroid) {
+        final androidInfo = await deviceInfo.androidInfo;
+        deviceName = androidInfo.brand;
+        androidVersion = androidInfo.version.release;
+        deviceModel = androidInfo.model;
+      }
+
+      await _apiClient.post('/api/auth/device', {
+        'deviceName': deviceName,
+        'androidVersion': androidVersion,
+        'deviceModel': deviceModel,
+        'appVersion': packageInfo.version,
+      });
+    } catch (_) {
+      // Fail silently for telemetry
+    }
   }
 
   /// Safely parse response body — never throws FormatException
@@ -70,6 +100,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           final data = _safeJsonDecode(response.body);
           if (data.containsKey('id')) {
             state = AuthState(user: User.fromJson(data), token: token);
+            _reportDeviceTelemetry();
             return;
           }
         }
@@ -100,6 +131,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           final user = User.fromJson(data['user'] as Map<String, dynamic>);
           await _apiClient.saveToken(token);
           state = AuthState(user: user, token: token);
+          _reportDeviceTelemetry();
           return true;
         }
         // 200 but unexpected body shape
@@ -144,6 +176,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           final user = User.fromJson(data['user'] as Map<String, dynamic>);
           await _apiClient.saveToken(token);
           state = AuthState(user: user, token: token);
+          _reportDeviceTelemetry();
           return true;
         }
         state = state.copyWith(

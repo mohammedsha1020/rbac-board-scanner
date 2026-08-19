@@ -32,19 +32,26 @@ export const getFolders = async (req: AuthenticatedRequest, res: Response) => {
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
   const parentId = req.query.parentId as string || null;
+  const targetUserId = req.query.targetUserId as string || null;
 
   try {
     const accessibleOwners = await getAccessibleOwnerIds(user.role, user.id);
 
-    // Fetch folders owned by accessible users
+    if (targetUserId && !accessibleOwners.includes(targetUserId)) {
+      return res.status(403).json({ error: 'Forbidden: Cannot access this user\'s files' });
+    }
+
+    const targetOwners = targetUserId ? [targetUserId] : accessibleOwners;
+
+    // Fetch folders owned by target users
     // Also include folders explicitly shared with the current user
     const folders = await prisma.folder.findMany({
       where: {
         parentId,
         isDeleted: false,
         OR: [
-          { ownerId: { in: accessibleOwners } },
-          { shares: { some: { sharedToId: user.id } } }
+          { ownerId: { in: targetOwners } },
+          targetUserId ? {} : { shares: { some: { sharedToId: user.id } } }
         ]
       },
       include: {
@@ -180,9 +187,16 @@ export const getScans = async (req: AuthenticatedRequest, res: Response) => {
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
   const folderId = req.query.folderId as string || null;
+  const targetUserId = req.query.targetUserId as string || null;
 
   try {
     const accessibleOwners = await getAccessibleOwnerIds(user.role, user.id);
+
+    if (targetUserId && !accessibleOwners.includes(targetUserId)) {
+      return res.status(403).json({ error: 'Forbidden: Cannot access this user\'s files' });
+    }
+
+    const targetOwners = targetUserId ? [targetUserId] : accessibleOwners;
 
     // List scans
     // Either directly owned by accessible owners, or shared with user
@@ -191,10 +205,10 @@ export const getScans = async (req: AuthenticatedRequest, res: Response) => {
         folderId,
         isDeleted: false,
         OR: [
-          { ownerId: { in: accessibleOwners } },
-          { shares: { some: { sharedToId: user.id } } },
+          { ownerId: { in: targetOwners } },
+          targetUserId ? {} : { shares: { some: { sharedToId: user.id } } },
           // If in a folder that is shared with the user
-          folderId ? { folder: { shares: { some: { sharedToId: user.id } } } } : {}
+          (folderId && !targetUserId) ? { folder: { shares: { some: { sharedToId: user.id } } } } : {}
         ]
       },
       include: {

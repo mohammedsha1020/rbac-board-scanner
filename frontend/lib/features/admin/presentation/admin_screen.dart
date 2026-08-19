@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/presentation/auth_provider.dart';
+import '../../folders/presentation/folders_screen.dart';
 import 'admin_provider.dart';
 
 class AdminScreen extends ConsumerStatefulWidget {
@@ -144,6 +145,17 @@ class _AdminScreenState extends ConsumerState<AdminScreen> with SingleTickerProv
 
         return Card(
           child: ListTile(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => FoldersScreen(
+                    targetUserId: d['userId'],
+                    targetUsername: ownerStr,
+                  ),
+                ),
+              );
+            },
             leading: const Icon(Icons.smartphone, color: Colors.indigoAccent),
             title: Text(d['deviceName'] ?? 'Generic Device'),
             subtitle: Text("User: $ownerStr • OS: ${d['androidVersion'] ?? 'Android'}"),

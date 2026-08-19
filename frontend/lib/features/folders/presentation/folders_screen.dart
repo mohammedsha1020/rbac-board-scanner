@@ -11,10 +11,11 @@ final fileSystemTabProvider = StateProvider<int>((ref) => 0); // 0: App Sandbox,
 final deviceCurrentPathProvider = StateProvider<String>((ref) => "/storage/emulated/0");
 final deviceSearchQueryProvider = StateProvider<String>((ref) => "");
 final searchQueryProvider = StateProvider<String>((ref) => "");
-final selectedSandboxUserProvider = StateProvider<String?>((ref) => null);
 
 class FoldersScreen extends ConsumerStatefulWidget {
-  const FoldersScreen({super.key});
+  final String? targetUserId;
+  final String? targetUsername;
+  const FoldersScreen({super.key, this.targetUserId, this.targetUsername});
 
   @override
   ConsumerState<FoldersScreen> createState() => _FoldersScreenState();
@@ -48,12 +49,13 @@ class _FoldersScreenState extends ConsumerState<FoldersScreen> {
     final user = auth.user;
     if (user == null) return const Scaffold(body: Center(child: Text("Please login")));
 
-    final activeTab = ref.watch(fileSystemTabProvider);
+    final isInspecting = widget.targetUserId != null;
+    final activeTab = isInspecting ? 0 : ref.watch(fileSystemTabProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(activeTab == 0 ? "App File Manager" : "Android Device Storage"),
-        bottom: PreferredSize(
+        title: Text(isInspecting ? "${widget.targetUsername}'s Files" : (activeTab == 0 ? "App File Manager" : "Android Device Storage")),
+        bottom: isInspecting ? null : PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: Container(
             color: const Color(0xFF1E293B),

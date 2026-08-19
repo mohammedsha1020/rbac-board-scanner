@@ -10,20 +10,24 @@ final sqliteHelperProvider = Provider<SqliteHelper>((ref) => SqliteHelper());
 
 // Current folder ID state (null for root)
 final currentFolderProvider = StateProvider<String?>((ref) => null);
+final selectedSandboxUserProvider = StateProvider<String?>((ref) => null);
 
 // Folders State Notifier
 class FoldersNotifier extends StateNotifier<AsyncValue<List<Map<String, dynamic>>>> {
   final ApiClient _apiClient;
   final SqliteHelper _dbHelper;
   final String? _currentFolderId;
+  final String? _targetUserId;
 
   FoldersNotifier({
     required ApiClient apiClient,
     required SqliteHelper dbHelper,
     required String? currentFolderId,
+    required String? targetUserId,
   })  : _apiClient = apiClient,
         _dbHelper = dbHelper,
         _currentFolderId = currentFolderId,
+        _targetUserId = targetUserId,
         super(const AsyncValue.loading()) {
     loadFolders();
   }
@@ -31,6 +35,18 @@ class FoldersNotifier extends StateNotifier<AsyncValue<List<Map<String, dynamic>
   Future<void> loadFolders() async {
     state = const AsyncValue.loading();
     try {
+      if (_targetUserId != null) {
+        // Direct remote fetch for inspecting other users
+        final response = await _apiClient.get('/api/folders?parentId=${_currentFolderId ?? ""}&targetUserId=$_targetUserId');
+        if (response.statusCode == 200) {
+          final List<dynamic> remoteData = json.decode(response.body);
+          state = AsyncValue.data(remoteData.cast<Map<String, dynamic>>());
+        } else {
+          state = AsyncValue.error("Failed to fetch user's folders", StackTrace.current);
+        }
+        return;
+      }
+
       // 1. Fetch from offline SQLite database
       final localFolders = await _dbHelper.getFolders(_currentFolderId);
       state = AsyncValue.data(localFolders);
@@ -113,6 +129,7 @@ final foldersListProvider = StateNotifierProvider.family<FoldersNotifier, AsyncV
     apiClient: ref.read(apiClientProvider),
     dbHelper: ref.read(sqliteHelperProvider),
     currentFolderId: folderId,
+    targetUserId: ref.watch(selectedSandboxUserProvider),
   );
 });
 
@@ -121,14 +138,17 @@ class ScansNotifier extends StateNotifier<AsyncValue<List<Map<String, dynamic>>>
   final ApiClient _apiClient;
   final SqliteHelper _dbHelper;
   final String? _currentFolderId;
+  final String? _targetUserId;
 
   ScansNotifier({
     required ApiClient apiClient,
     required SqliteHelper dbHelper,
     required String? currentFolderId,
+    required String? targetUserId,
   })  : _apiClient = apiClient,
         _dbHelper = dbHelper,
         _currentFolderId = currentFolderId,
+        _targetUserId = targetUserId,
         super(const AsyncValue.loading()) {
     loadScans();
   }
@@ -136,6 +156,18 @@ class ScansNotifier extends StateNotifier<AsyncValue<List<Map<String, dynamic>>>
   Future<void> loadScans() async {
     state = const AsyncValue.loading();
     try {
+      if (_targetUserId != null) {
+        // Direct remote fetch for inspecting other users
+        final response = await _apiClient.get('/api/scans?folderId=${_currentFolderId ?? ""}&targetUserId=$_targetUserId');
+        if (response.statusCode == 200) {
+          final List<dynamic> remoteData = json.decode(response.body);
+          state = AsyncValue.data(remoteData.cast<Map<String, dynamic>>());
+        } else {
+          state = AsyncValue.error("Failed to fetch user's scans", StackTrace.current);
+        }
+        return;
+      }
+
       // 1. Fetch offline SQLite scans
       final localScans = await _dbHelper.getScans(_currentFolderId);
       state = AsyncValue.data(localScans);
@@ -241,5 +273,6 @@ final scansListProvider = StateNotifierProvider.family<ScansNotifier, AsyncValue
     apiClient: ref.read(apiClientProvider),
     dbHelper: ref.read(sqliteHelperProvider),
     currentFolderId: folderId,
+    targetUserId: ref.watch(selectedSandboxUserProvider),
   );
 });
